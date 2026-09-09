@@ -1097,6 +1097,9 @@ body.theme-midnight{--accent:#8b9cff;--accent2:#b8c0ff;--bg:#05070c;--panel:#0b0
 body.premium-calm .hero{box-shadow:0 30px 100px rgba(0,0,0,.18)}
 body.premium-calm .card{box-shadow:0 12px 40px rgba(0,0,0,.10)}
 
+
+#weeklyAddBox.show{display:flex!important}.weeklyMinimalHead{display:flex;justify-content:space-between;align-items:center;gap:18px}.weeklyMinimalStats{display:flex;gap:18px;color:var(--muted);font-size:12px}.weeklyMinimalStats b{color:var(--text);font-size:16px}.weeklyMinimalCard{margin-top:14px}.weeklyHeader{display:flex;justify-content:space-between;align-items:center;gap:12px}.weeklyTableWrap{overflow-x:auto;margin-top:14px}.weeklyTable{width:100%;border-collapse:separate;border-spacing:4px;min-width:680px}.weeklyTable th{font-size:10px;color:var(--muted);font-weight:800;padding:8px}.weeklyTable td{padding:7px;text-align:center}.weeklyHabitName{text-align:left!important;font-weight:750;min-width:190px}.habitDot{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:900}.habitDot.done{background:var(--accent);color:white;border-color:transparent}.habitDelete{border:0;background:transparent;color:var(--muted);font-size:14px}@media(max-width:800px){.weeklyMinimalHead{align-items:flex-start;flex-direction:column}.weeklyMinimalStats{width:100%;justify-content:space-between}}
+
 </style>
 </head>
 
@@ -1116,6 +1119,7 @@ body.premium-calm .card{box-shadow:0 12px 40px rgba(0,0,0,.10)}
   <button onclick="go('subjects',this)">▣ &nbsp; Subjects</button>
   <button onclick="go('progress',this)">✓ &nbsp; My Progress</button>
   <button onclick="go('planner',this)">◷ &nbsp; Planner</button>
+  <button onclick="go('weekly',this)">▦ &nbsp; Weekly Planner</button>
   <button onclick="go('focus',this)">◉ &nbsp; Focus Mode</button>
   <button onclick="go('profile',this)">👤 &nbsp; Profile</button>
  </nav>
@@ -1446,6 +1450,40 @@ body.premium-calm .card{box-shadow:0 12px 40px rgba(0,0,0,.10)}
 </section>
 
 
+
+<! ================= WEEKLY PLANNER ================= >
+<section id="weekly" class="section">
+ <div class="title">
+  <div><div class="eyebrow">WEEKLY PLANNER</div><h2>Weekly Planner</h2></div>
+  <span class="muted">Plan it. Check it. Keep moving.</span>
+ </div>
+
+ <div class="card weeklyMinimalHead">
+  <div>
+   <div class="muted">THIS WEEK</div>
+   <h2 id="weeklyGreeting" style="margin-top:6px">Your week</h2>
+  </div>
+  <div class="weeklyMinimalStats">
+   <span><b id="weeklyDone">0/0</b> done</span>
+   <span><b id="weeklyRate">0%</b> complete</span>
+  </div>
+ </div>
+
+ <div class="card weeklyMinimalCard">
+  <div class="weeklyHeader">
+   <div><h3>Habits & Tasks</h3><div class="muted" style="margin-top:4px">Your Monday–Sunday plan</div></div>
+   <button class="primary" onclick="addWeeklyHabit()">＋ Add</button>
+  </div>
+  <div id="weeklyHabitTable" class="weeklyTableWrap"></div>
+  <div id="weeklyAddBox" style="display:none;margin-top:12px;gap:8px;align-items:center">
+   <input id="weeklyHabitInput" maxlength="60" placeholder="e.g. Revise Hindi" style="flex:1">
+   <button class="primary" type="button" onclick="confirmWeeklyHabit()">Add</button>
+   <button class="secondary" type="button" onclick="cancelWeeklyHabit()">Cancel</button>
+  </div>
+ </div>
+</section>
+
+
 <! ================= FOCUS ================= >
 <section id="focus" class="section">
  <div class="title focusTitle"><div><div class="eyebrow">FOCUS</div><h2>Focus</h2></div><span class="muted">Quiet time. Clear mind.</span></div>
@@ -1505,6 +1543,10 @@ body.premium-calm .card{box-shadow:0 12px 40px rgba(0,0,0,.10)}
 
  <button onclick="go('focus',this)">
   ◉<br>Focus
+ </button>
+
+ <button onclick="go('weekly',this)">
+  ▦<br>Planner
  </button>
 
 </div>
@@ -2134,10 +2176,6 @@ Hindi:{
 let completed=JSON.parse(
  localStorage.getItem("board27_completed")||"{}"
 );
-
-// Hindi syllabus was updated; do not carry old Hindi chapter indexes into the new syllabus.
-Object.keys(completed).filter(k=>k.startsWith("Hindi_")).forEach(k=>delete completed[k]);
-localStorage.setItem("board27_completed",JSON.stringify(completed));
 
 let tasks=JSON.parse(
  localStorage.getItem("board27_tasks")||"[]"
@@ -3883,6 +3921,91 @@ window.addEventListener('beforeunload',()=>{try{saveSimpleProfile();}catch(e){}}
 
   // Make home feel alive without altering subject data.
   document.body.classList.add('premium-calm');
+})();
+</script>
+
+
+<script>
+/* ===== BOARD27 WEEKLY PLANNER — stable autosave ===== */
+(function(){
+ const KEY='board27_weekly_planner_v3';
+ const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+ let store={weeks:{}};
+ try{store=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){store={}};
+ if(!store.weeks)store.weeks={};
+
+ function mondayKey(){
+  const d=new Date();
+  const day=d.getDay()||7;
+  d.setDate(d.getDate()-day+1);
+  d.setHours(0,0,0,0);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ }
+ function current(){
+  const key=mondayKey();
+  if(!Array.isArray(store.weeks[key]))store.weeks[key]=[];
+  store.weeks[key].forEach(h=>{
+   if(!Array.isArray(h.days))h.days=[false,false,false,false,false,false,false];
+   while(h.days.length<7)h.days.push(false);
+  });
+  return store.weeks[key];
+ }
+ function save(){try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}}
+ function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+
+ window.addWeeklyHabit=function(){
+  const input=document.getElementById('weeklyHabitInput');
+  if(!input)return;
+  input.focus();
+  document.getElementById('weeklyAddBox').classList.add('show');
+ };
+ window.cancelWeeklyHabit=function(){
+  const box=document.getElementById('weeklyAddBox');
+  const input=document.getElementById('weeklyHabitInput');
+  if(box)box.classList.remove('show');
+  if(input){input.value='';}
+ };
+ window.confirmWeeklyHabit=function(){
+  const input=document.getElementById('weeklyHabitInput');
+  const n=(input?.value||'').trim();
+  if(!n){input?.focus();return;}
+  const habits=current();
+  habits.push({id:String(Date.now())+Math.random().toString(36).slice(2,7),name:n.slice(0,60),days:[false,false,false,false,false,false,false]});
+  save();
+  cancelWeeklyHabit();
+  renderWeekly();
+ };
+ window.toggleWeeklyHabit=function(id,day){
+  const h=current().find(x=>String(x.id)===String(id));
+  if(!h)return;
+  h.days[day]=!h.days[day];
+  save();
+  renderWeekly();
+ };
+ window.deleteWeeklyHabit=function(id){
+  const key=mondayKey();
+  store.weeks[key]=current().filter(x=>String(x.id)!==String(id));
+  save();
+  renderWeekly();
+ };
+ function renderWeekly(){
+  const habits=current();
+  const all=habits.length*7;
+  const done=habits.reduce((a,h)=>a+h.days.filter(Boolean).length,0);
+  const rate=all?Math.round(done/all*100):0;
+  const d=document.getElementById('weeklyDone');if(d)d.textContent=done+'/'+all;
+  const r=document.getElementById('weeklyRate');if(r)r.textContent=rate+'%';
+  const g=document.getElementById('weeklyGreeting');if(g)g.textContent=rate===100&&all?'Perfect week.':'Your week, your plan.';
+  const box=document.getElementById('weeklyHabitTable');if(!box)return;
+  if(!habits.length){box.innerHTML='<div class="empty" style="padding:28px 0;text-align:center">No habits yet. Add one to start your week.</div>';return;}
+  box.innerHTML='<table class="weeklyTable"><thead><tr><th class="weeklyHabitName">HABIT / TASK</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'<th></th></tr></thead><tbody>'+habits.map(h=>'<tr><td class="weeklyHabitName">'+esc(h.name)+'</td>'+h.days.map((v,i)=>'<td><button type="button" class="habitDot '+(v?'done':'')+'" aria-label="'+days[i]+' '+esc(h.name)+'" onclick="toggleWeeklyHabit(\''+String(h.id).replace(/'/g,'\\\'')+'\','+i+')">'+(v?'✓':'')+'</button></td>').join('')+'<td><button type="button" class="habitDelete" aria-label="Delete" onclick="deleteWeeklyHabit(\''+String(h.id).replace(/'/g,'\\\'')+'\')">×</button></td></tr>').join('')+'</tbody></table>';
+ }
+ document.addEventListener('DOMContentLoaded',()=>{
+  const input=document.getElementById('weeklyHabitInput');
+  if(input)input.addEventListener('keydown',e=>{if(e.key==='Enter')confirmWeeklyHabit();if(e.key==='Escape')cancelWeeklyHabit();});
+  renderWeekly();
+ });
+ window.addEventListener('beforeunload',save);
 })();
 </script>
 
